@@ -500,3 +500,54 @@ A valid JSON object. For example:
 This field is **optional**, but extremely useful during debugging and post-mortem analysis.
 
 ---
+---
+
+### ✅ `pipeline_lifecycle` Table Schema (Final – 37 Columns)
+
+| #                                        | Column Name                      | Purpose                                                             | Type             | Example Value           |
+| ---------------------------------------- | -------------------------------- | ------------------------------------------------------------------- | ---------------- | ----------------------- |
+| **\[1] Execution Context**               |                                  |                                                                     |                  |                         |
+| 1                                        | `run_source`                     | Who triggered the pipeline                                          | STRING           | `airflow`, `manual`     |
+| 2                                        | `job_id`                         | Unique pipeline run identifier                                      | STRING           | `JOB_20250613_001`      |
+| **\[2] Source Identification**           |                                  |                                                                     |                  |                         |
+| 3                                        | `source_name`                    | Type of source system                                               | STRING           | `elasticsearch`         |
+| 4                                        | `data_domain`                    | Logical grouping/category of data                                   | STRING           | `logs`, `metrics`       |
+| 5                                        | `source_object`                  | Source index/table/file                                             | STRING           | `logs-prod-*`           |
+| 6                                        | `source_data_frequency`          | How often data is generated at source                               | STRING           | `1 MIN`, `1 HOUR`       |
+| 7                                        | `collection_frequency`           | How often pipeline ingests data                                     | STRING           | `1 HOUR`, `DAILY`       |
+| **\[3] Query Window**                    |                                  |                                                                     |                  |                         |
+| 8                                        | `query_window_start_at`          | Start of extraction window                                          | TIMESTAMP        | `2025-06-13T00:00:00Z`  |
+| 9                                        | `query_window_end_at`            | End of extraction window                                            | TIMESTAMP        | `2025-06-13T01:00:00Z`  |
+| 10                                       | `query_window_delta_label`       | Human-readable duration of window                                   | STRING           | `1 HOUR`, `15 MIN`      |
+| **\[4] Pipeline Configuration**          |                                  |                                                                     |                  |                         |
+| 11                                       | `pipeline_route`                 | Logical route taken by data                                         | STRING           | `source_to_snowflake`   |
+| 12                                       | `job_started_at`                 | When pipeline execution started                                     | TIMESTAMP        | `2025-06-13T01:10:00Z`  |
+| **\[5] Source Observation & Extraction** |                                  |                                                                     |                  |                         |
+| 13                                       | `source_count_pre_checked_at`    | Timestamp of pre-extraction count                                   | TIMESTAMP        | `2025-06-13T01:11:00Z`  |
+| 14                                       | `source_count_pre_extract`       | Record count before data pull                                       | INTEGER          | `10000`                 |
+| 15                                       | `source_extracted_at`            | When data extraction completed                                      | TIMESTAMP        | `2025-06-13T01:13:00Z`  |
+| 16                                       | `source_extracted_count`         | Records extracted from the source                                   | INTEGER          | `10000`                 |
+| 17                                       | `source_count_post_checked_at`   | Timestamp of post-extraction count check                            | TIMESTAMP        | `2025-06-13T01:15:00Z`  |
+| 18                                       | `source_count_post_extract`      | Record count still in source after extraction                       | INTEGER          | `10000`                 |
+| **\[6] Transfer Phase Timing**           |                                  |                                                                     |                  |                         |
+| 19                                       | `source_to_target_started_at`    | When data transfer to target began                                  | TIMESTAMP        | `2025-06-13T01:16:00Z`  |
+| 20                                       | `source_to_target_ended_at`      | When data transfer to target completed                              | TIMESTAMP        | `2025-06-13T01:18:00Z`  |
+| 21                                       | `source_to_target_duration_mins` | Total duration of the transfer phase                                | FLOAT            | `2.0`                   |
+| 22                                       | `target_loaded_at`               | When data was confirmed loaded into the target                      | TIMESTAMP        | `2025-06-13T01:18:00Z`  |
+| 23                                       | `extract_to_load_gap_mins`       | Delay between extraction and target load                            | FLOAT            | `5.0`                   |
+| **\[7] Target Load & Audit Metrics**     |                                  |                                                                     |                  |                         |
+| 24                                       | `target_loaded_count`            | Number of records loaded into target                                | INTEGER          | `10000`                 |
+| 25                                       | `count_difference`               | Difference between source extracted and loaded                      | INTEGER          | `0`                     |
+| 26                                       | `count_difference_percent`       | Relative difference (e.g., % drift)                                 | FLOAT            | `0.0`                   |
+| **\[8] Process & Audit Statuses**        |                                  |                                                                     |                  |                         |
+| 27                                       | `elt_process_status`             | Technical status of pipeline execution                              | STRING           | `COMPLETED`, `FAILED`   |
+| 28                                       | `audit_process_status`           | Did audit logic execute successfully                                | STRING           | `COMPLETED`, `FAILED`   |
+| 29                                       | `audit_result_status`            | Outcome of data match verification                                  | STRING           | `MATCHED`, `MISMATCHED` |
+| **\[9] Final Outcome**                   |                                  |                                                                     |                  |                         |
+| 30                                       | `pipeline_final_status`          | Overall run status across all steps                                 | STRING           | `COMPLETED`, `FAILED`   |
+| **\[10] Developer & Debug Info**         |                                  |                                                                     |                  |                         |
+| 31                                       | `misc_info_json`                 | JSON with optional debug info, manual run params, owner notes, etc. | STRING / VARIANT | JSON string             |
+
+---
+
+
