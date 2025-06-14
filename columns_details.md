@@ -1,463 +1,551 @@
 ## Column: `run_source`
 
 **Purpose**
-Identifies who or what triggered this pipeline run. This is essential to distinguish automated runs (e.g., via Airflow) from ad hoc or manual ones. It helps audit how the run was initiated and by whom.
+Identifies the origin of the trigger that initiated the pipeline run. This helps differentiate automated runs (via schedulers like Airflow) from manually triggered or command-line-based executions.
 
-**Data Type**
-`STRING`
+**Scope & Use Cases**
 
-**Possible Values**
+* Enables tracking of whether the execution was human-triggered or system-triggered
+* Can be used to debug failures (e.g., manual override scenarios)
+* Important in audit trails where production and testing runs must be distinguished
 
-* `airflow`
-* `manual`
-* `cli`
-  (Extendable for other orchestrators like `az-data-factory`, etc.)
+**Data Type**: `STRING`
+**Possible Values**:
+
+* `airflow` – Triggered from Airflow DAG
+* `manual` – Manually triggered by a user
+* `cli` – Triggered from command-line interface tools or scripts
 
 ---
 
 ## Column: `job_id`
 
 **Purpose**
-Provides a unique identifier for each run of the pipeline. It links all records, logs, and audit metrics associated with a single execution unit.
+A unique identifier that distinguishes each pipeline run. It acts as the primary key for tracking every stage, metric, and outcome.
 
-**Data Type**
-`STRING`
+**Scope & Use Cases**
 
-**Possible Values**
+* Used for correlating logs, metrics, intermediate states, and downstream validations
+* Required for reprocessing logic, duplicate prevention, and linking audit results
+* Should be persistent and consistently passed through all internal steps
 
-* `JOB_20250613_001`
-* UUID or timestamp-based identifiers (e.g., `f2c71b3e-88d4...`)
+**Data Type**: `STRING`
+**Example**: `JOB_20250614_0001`, `run_14JUN2025_10AM`
 
 ---
 
 ## Column: `source_name`
 
 **Purpose**
-Specifies the type of data source system involved in this pipeline (e.g., Elasticsearch, MySQL, S3). Helps determine extraction logic and toolchain.
+Describes the broad system or technology stack the data originates from—such as Elasticsearch, NFS, Kafka, or internal APIs.
 
-**Data Type**
-`STRING`
+**Scope & Use Cases**
 
-**Possible Values**
+* Important when managing multiple heterogeneous data sources
+* Used for routing and applying source-specific extraction logic
+* Often used in source-to-target lineage reports and documentation
 
-* `elasticsearch`
-* `mysql`
-* `s3`
-* `kafka`
+**Data Type**: `STRING`
+**Example Values**: `elasticsearch`, `nfs`, `postgres`, `api_server`
 
 ---
 
 ## Column: `data_domain`
 
 **Purpose**
-Categorizes the data within a logical or business context. Useful for separating logs, metrics, transactions, etc., and grouping related pipelines.
+Defines the logical classification of data content or business relevance (e.g., logs, metrics, finance, telemetry).
 
-**Data Type**
-`STRING`
+**Scope & Use Cases**
 
-**Possible Values**
+* Enables semantic grouping of data pipelines
+* Useful for access control, cataloging, monitoring segregation, and audit policies
+* Also helps when calculating metrics across domains
 
-* `logs`
-* `metrics`
-* `clickstream`
-* `user_profiles`
+**Data Type**: `STRING`
+**Example Values**: `logs`, `transactions`, `telemetry`, `user_activity`
 
 ---
 
 ## Column: `source_object`
 
 **Purpose**
-Denotes the specific table, index, or file name being accessed in the source system. This enables fine-grained tracking of what exact data was handled.
+Identifies the specific physical or logical object being ingested—such as an Elasticsearch index, a folder path, or a database table.
 
-**Data Type**
-`STRING`
+**Scope & Use Cases**
 
-**Possible Values**
+* Enables record-level traceability to specific ingested entities
+* Used to check overlap windows, frequency mismatches, and operational errors
+* Also used in alerting or source-specific audit logs
 
-* `logs-prod-*`
-* `user_data_table`
-* `raw/2025/06/13/events.json`
+**Data Type**: `STRING`
+**Examples**: `log-events-prod-index`, `nfs://var/logs/app1/`, `user_sessions`
 
 ---
 
 ## Column: `source_data_frequency`
 
 **Purpose**
-Describes how frequently the source system generates new data. This helps estimate expected volume, schedule ingestion, and design monitoring thresholds.
+Describes the **rate at which new data becomes available at the source**. This is an attribute of the source system, not the pipeline.
 
-**Data Type**
-`STRING`
+**Scope & Use Cases**
 
-**Possible Values**
+* Helps determine how often the data should be polled or refreshed
+* Useful for SLA and freshness expectations
+* Critical in detecting under-ingestion or over-polling scenarios
 
-* `1 MIN`
-* `5 MIN`
-* `1 HOUR`
-* `DAILY`
+**Data Type**: `STRING`
+**Examples**: `5min`, `hourly`, `daily`
 
 ---
 
 ## Column: `collection_frequency`
 
 **Purpose**
-Indicates how often the pipeline is configured to ingest or collect data from the source. Used to align extraction windows with upstream data flow.
+Specifies the frequency with which the pipeline collects or extracts data. This may differ from the source's natural frequency.
 
-**Data Type**
-`STRING`
+**Scope & Use Cases**
 
-**Possible Values**
+* Used to calculate and validate query windows
+* Helps in monitoring skipped intervals or missed runs
+* Can also help determine batch sizes and infrastructure scaling
 
-* `15 MIN`
-* `1 HOUR`
-* `DAILY`
+**Data Type**: `STRING`
+**Examples**: `hourly`, `daily`, `on_demand`
 
 ---
 
 ## Column: `query_window_start_at`
 
 **Purpose**
-Marks the beginning of the time window for which data is extracted. This allows controlled slicing of source data, especially when handling large volumes or historical loads.
+Defines the **inclusive start timestamp** of the query window. This timestamp determines the beginning of the time range for which data is fetched from the source.
 
-**Data Type**
-`TIMESTAMP`
+**Scope & Use Cases**
 
-**Possible Values**
+* Central to batching, scheduling, and idempotent extraction logic
+* Used in data filtering, partitioning, and incremental queries
+* Serves as a boundary marker to avoid data duplication or gaps
 
-* `2025-06-13T00:00:00Z`
-* ISO 8601 timestamp in UTC
+**Data Type**: `TIMESTAMP`
+**Example**: `2025-06-14T10:00:00`
 
 ---
 
 ## Column: `query_window_end_at`
 
 **Purpose**
-Marks the end of the data extraction time window. Defines the upper bound of the time range to be ingested in a given run.
+Defines the **exclusive end timestamp** of the query window. It marks the upper boundary of data collection.
 
-**Data Type**
-`TIMESTAMP`
+**Scope & Use Cases**
 
-**Possible Values**
+* Paired with `query_window_start_at` to define the exact data slice
+* Used for generating filters, validating completeness, and SLA checks
+* Ensures temporal ordering and continuity of processing
 
-* `2025-06-13T01:00:00Z`
-* ISO 8601 timestamp in UTC
+**Data Type**: `TIMESTAMP`
+**Example**: `2025-06-14T11:00:00`
 
 ---
 
 ## Column: `query_window_delta_label`
 
 **Purpose**
-A human-readable label that describes the size of the query window. Helps with understanding batch size and standardizing run intervals across pipelines.
+Provides a human-readable label that describes the size of the query window (e.g., 1 hour, 24 hours).
 
-**Data Type**
-`STRING`
+**Scope & Use Cases**
 
-**Possible Values**
+* Makes logs and reports easier to read
+* Helps validate if the right frequency window was applied
+* Useful for grouping or aggregating executions of the same granularity
 
-* `15 MIN`
-* `1 HOUR`
-* `1 DAY`
+**Data Type**: `STRING`
+**Example**: `1 hour`, `24 hours`
 
 ---
+
+## Column: `query_start_date`
+
+**Purpose**
+Day-part (date-only) extracted from `query_window_start_at`. Helps in indexing and efficiently locating overlapping query windows.
+
+**Scope & Use Cases**
+
+* Used to optimize overlap detection by filtering only relevant rows
+* Simplifies querying for partition-level management
+* Can support data summarization by day
+
+**Data Type**: `DATE`
+**Example**: `2025-06-14`
+
+---
+
+## Column: `query_end_date`
+
+**Purpose**
+Day-part (date-only) extracted from `query_window_end_at`.
+
+**Scope & Use Cases**
+
+* Used alongside `query_start_date` to find overlaps
+* Important in comparing time ranges across days
+* Helpful for queries at the daily granularity
+
+**Data Type**: `DATE`
+**Example**: `2025-06-14`
+
+---
+
+## Column: `query_window_overlap_flag`
+
+**Purpose**
+Flags whether the current query window overlaps with any prior run (based on `source_object` and time range).
+
+**Scope & Use Cases**
+
+* Prevents duplication and conflicting writes
+* Enables reprocessing safety checks
+* Can block execution or raise alerts when overlap is detected
+
+**Data Type**: `BOOLEAN`
+**Possible Values**: `TRUE`, `FALSE`
+
+---
+
+## Column: `query_window_overlap_group_id`
+
+**Purpose**
+Groups together all overlapping query windows by assigning them a shared identifier.
+
+**Scope & Use Cases**
+
+* Facilitates traceability across conflicting runs
+* Supports conflict resolution and bulk rollback
+* Helps in audit dashboards and human review
+
+**Data Type**: `STRING` or `UUID`
+**Example**: `overlap_grp_20250614_01`, `uuid-abc123`
+
+---
+
 
 ## Column: `pipeline_route`
 
 **Purpose**
-Describes the route the data takes from source to target. Helps track whether intermediate stages (e.g., S3) are used or if it is a direct load.
+Describes the logical data flow route for this job. It defines the sequence from source to intermediate/target systems (e.g., source → s3 → snowflake).
 
-**Data Type**
-`STRING`
+**Scope & Use Cases**
 
-**Possible Values**
+* Provides clarity on which systems were used in a run
+* Supports conditional logic in pipeline logic (e.g., bypass S3 if direct load)
+* Enables visual lineage tracking and log correlation
 
-* `source_to_snowflake`
-* `source_to_s3_to_snowflake`
-* `source_to_target`
+**Data Type**: `STRING`
+**Example Values**:
+
+* `source → s3 → snowflake`
+* `source → snowflake`
 
 ---
 
 ## Column: `job_started_at`
 
 **Purpose**
-Indicates when the execution of this pipeline run officially started. It serves as the main time anchor for auditing and duration calculations.
+Marks the timestamp when the pipeline run officially started.
 
-**Data Type**
-`TIMESTAMP`
+**Scope & Use Cases**
 
-**Possible Values**
+* Used to calculate total pipeline runtime
+* Helps detect delays in scheduling vs. actual execution
+* Required for monitoring and audit trails
 
-* `2025-06-13T01:10:00Z`
-* ISO 8601 timestamp in UTC
+**Data Type**: `TIMESTAMP`
 
 ---
 
 ## Column: `source_count_pre_checked_at`
 
 **Purpose**
-Timestamp when the pre-extraction count was measured at the source. This helps confirm the expected volume before actual data pull begins.
+Timestamp when the pre-extraction record count was collected from the source system.
 
-**Data Type**
-`TIMESTAMP`
+**Scope & Use Cases**
 
-**Possible Values**
+* Used to verify whether the source data remained stable during extraction
+* Enables audit logging and consistency validation
+* Aids in comparing with post-extraction values
 
-* `2025-06-13T01:11:00Z`
+**Data Type**: `TIMESTAMP`
 
 ---
 
 ## Column: `source_count_pre_extract`
 
 **Purpose**
-Number of records present in the source system when the pre-check was performed. Used to validate stability and ensure no drift before extraction.
+Count of records in the source system **just before** data extraction begins.
 
-**Data Type**
-`INTEGER`
+**Scope & Use Cases**
 
-**Possible Values**
+* Acts as the "before" snapshot to compare against post-extraction and final load
+* Helps detect appends or volatility in source data
+* Key component of static vs dynamic source behavior detection
 
-* `10000`
-* `0` (if source was empty)
+**Data Type**: `INTEGER`
 
 ---
 
 ## Column: `source_extracted_at`
 
 **Purpose**
-Timestamp indicating when the extraction step finished. Used to track the exact point data was pulled from the source.
+Marks the timestamp when the source data was fully extracted.
 
-**Data Type**
-`TIMESTAMP`
+**Scope & Use Cases**
 
-**Possible Values**
+* Indicates the real-world time at which data left the source
+* Used to calculate latency
+* Important for time-to-ingest metrics and SLA tracking
 
-* `2025-06-13T01:13:00Z`
+**Data Type**: `TIMESTAMP`
 
 ---
 
 ## Column: `source_extracted_count`
 
 **Purpose**
-The actual number of records extracted from the source during this pipeline run. This value is compared against both source pre/post counts and target load.
+Actual number of records extracted from the source during this run.
 
-**Data Type**
-`INTEGER`
+**Scope & Use Cases**
 
-**Possible Values**
+* Directly validates the success of source ingestion logic
+* Acts as a baseline to compare target loaded count
+* Critical in verifying end-to-end data completeness
 
-* `10000`
+**Data Type**: `INTEGER`
 
 ---
 
 ## Column: `source_count_post_checked_at`
 
 **Purpose**
-Timestamp when the post-extraction count was re-measured. Used to detect if data at source changed during/after extraction.
+Timestamp when the record count at the source was checked again **after** extraction.
 
-**Data Type**
-`TIMESTAMP`
+**Scope & Use Cases**
 
-**Possible Values**
+* Enables detection of changes that occurred mid-extraction
+* Helps in audit scenarios where data volatility must be known
+* Can support alerts if post-count differs from pre-count unexpectedly
 
-* `2025-06-13T01:15:00Z`
+**Data Type**: `TIMESTAMP`
 
 ---
 
 ## Column: `source_count_post_extract`
 
 **Purpose**
-Number of records present at source after extraction. Useful to validate immutability or volatility of source data across the extraction window.
+Count of records in the source system **after** the extraction completed.
 
-**Data Type**
-`INTEGER`
+**Scope & Use Cases**
 
-**Possible Values**
+* Paired with pre-extract count to assess source stability
+* If the value differs significantly, the source was changing during read
+* Used for decision-making about retry, pause, or override logic
 
-* `10000` (stable)
-* `10010` (source changed)
+**Data Type**: `INTEGER`
 
 ---
 
 ## Column: `source_to_target_started_at`
 
 **Purpose**
-Marks when the transfer from source to target (e.g., S3 or Snowflake) began. This helps diagnose delays or measure performance of the staging/load layer.
+Timestamp marking the beginning of the data transfer phase—from the pipeline into the target system (e.g., S3, Snowflake).
 
-**Data Type**
-`TIMESTAMP`
+**Scope & Use Cases**
 
-**Possible Values**
+* Helps compute stage-wise duration
+* Indicates when transformation/load logic started
+* Important for identifying bottlenecks between extraction and loading
 
-* `2025-06-13T01:16:00Z`
+**Data Type**: `TIMESTAMP`
 
 ---
 
 ## Column: `source_to_target_ended_at`
 
 **Purpose**
-Marks when the transfer from source to target completed. Paired with the start time, this allows computation of the total transfer duration.
+Timestamp marking the end of the data load into the target system.
 
-**Data Type**
-`TIMESTAMP`
+**Scope & Use Cases**
 
-**Possible Values**
+* Allows for calculating load duration
+* Critical for SLAs that measure latency between extract and load
+* Enables process duration comparison across different targets
 
-* `2025-06-13T01:18:00Z`
+**Data Type**: `TIMESTAMP`
 
 ---
 
 ## Column: `source_to_target_duration_mins`
 
 **Purpose**
-Duration in minutes taken to move data from source to target. This field supports performance tracking and SLA validation.
+Duration in minutes taken to move data from source to target (load time).
 
-**Data Type**
-`FLOAT`
+**Scope & Use Cases**
 
-**Possible Values**
+* Helps detect anomalies or spikes in load time
+* Supports scaling decisions and performance benchmarks
+* Used in alerting pipelines that exceed runtime thresholds
 
-* `2.0`
-* `15.5`
+**Data Type**: `FLOAT`
 
 ---
 
 ## Column: `target_loaded_at`
 
 **Purpose**
-Indicates the exact time the target system (e.g., Snowflake) confirmed that data was successfully loaded. This is essential for auditing data freshness and downstream triggers.
+Timestamp when the data became fully available at the target system and ingestion completed.
 
-**Data Type**
-`TIMESTAMP`
+**Scope & Use Cases**
 
-**Possible Values**
+* Can be used to measure ingestion freshness
+* Useful in user-facing SLAs (e.g., “data available within X mins”)
+* Required for partitioning in time-series pipelines
 
-* `2025-06-13T01:18:00Z`
+**Data Type**: `TIMESTAMP`
 
 ---
 
 ## Column: `extract_to_load_gap_mins`
 
 **Purpose**
-Represents the delay between when data was extracted and when it was fully loaded into the target. Used to diagnose latency between stages.
+Difference in minutes between extraction completion and target load completion.
 
-**Data Type**
-`FLOAT`
+**Scope & Use Cases**
 
-**Possible Values**
+* Indicates queueing or system lag
+* Helps detect under-provisioned or delayed targets
+* Important for ingestion time optimizations
 
-* `5.0`
-* `0.0`
+**Data Type**: `FLOAT`
 
 ---
-
 
 ## Column: `target_loaded_count`
 
 **Purpose**
-Specifies how many records were successfully loaded into the target system (e.g., Snowflake). This is the primary metric for validating ingestion success.
+Actual number of records that were successfully written to the final destination (S3, Snowflake, etc.).
 
-**Data Type**
-`INTEGER`
+**Scope & Use Cases**
 
-**Possible Values**
+* Core to end-to-end audit and count matching
+* Validates success of downstream stages
+* Used to compute discrepancies from extraction
 
-* `10000`
-* `0` (if no records were written)
+**Data Type**: `INTEGER`
 
 ---
 
 ## Column: `count_difference`
 
 **Purpose**
-The absolute difference between `source_extracted_count` and `target_loaded_count`. This helps detect dropped, duplicate, or corrupted records in transit.
+Difference between the number of extracted records and those loaded to the target.
 
-**Data Type**
-`INTEGER`
+**Scope & Use Cases**
 
-**Possible Values**
+* Core audit metric
+* Helps detect data truncation, duplicate filtering, or load failures
+* Should ideally be `0` unless justifiable business logic exists
 
-* `0` (exact match)
-* `+5` (excess at target)
-* `-10` (missing at target)
+**Data Type**: `INTEGER`
 
 ---
 
 ## Column: `count_difference_percent`
 
 **Purpose**
-The percentage difference between source and target counts, relative to the source extracted count. Helps normalize discrepancies across pipelines with varying volumes.
+Percentage mismatch between source and target counts.
 
-**Data Type**
-`FLOAT`
+**Scope & Use Cases**
 
-**Possible Values**
+* Highlights small vs large discrepancies
+* Enables alert thresholds
+* Easier to interpret across varied batch sizes
 
-* `0.0` (perfect match)
-* `0.02` (2% drift)
-* `-0.01` (1% shortfall)
+**Data Type**: `FLOAT`
+**Example**: `0.00` (perfect match), `3.21` (3.21% loss)
 
 ---
+
 
 
 ## Column: `elt_process_status`
 
 **Purpose**
-Describes the technical execution status of the pipeline’s ELT (Extract, Load, Transform) phase. It tracks whether the data movement and transformations completed as expected.
+Tracks the status of the Extract-Load-Transform process. It reflects whether the pipeline stages (not audit) were technically successful.
 
-**Data Type**
-`STRING`
+**Scope & Use Cases**
 
-**Possible Values**
+* Monitors technical task completion regardless of data quality
+* Useful for retries and resumption logic
+* Drives alerting for broken transformations or load failures
 
-* `PENDING` — Execution not yet started
-* `STARTED` — In progress
-* `COMPLETED` — Finished successfully
-* `FAILED` — Encountered an error
-* `SKIPPED` — Step bypassed intentionally
+**Data Type**: `STRING`
+**Possible Values**:
+
+* `PENDING` – Pipeline not yet started
+* `STARTED` – Pipeline is currently executing
+* `COMPLETED` – All ELT stages succeeded
+* `FAILED` – One or more pipeline tasks failed
+* `SKIPPED` – This run was intentionally bypassed (e.g., no data available)
 
 ---
 
 ## Column: `audit_process_status`
 
 **Purpose**
-Indicates the outcome of the audit step that validates data consistency, such as count checks or hash comparisons. It refers to whether audit logic was executed successfully, not whether the data matched.
+Represents whether audit logic (such as record count comparisons, hash checks, or validation rules) was executed.
 
-**Data Type**
-`STRING`
+**Scope & Use Cases**
 
-**Possible Values**
+* Distinct from ELT status: audit can run independently after technical tasks
+* Useful in compliance-heavy or correctness-critical pipelines
+* Needed for downstream decision logic like approval gates or rollback
 
-* `PENDING`
-* `STARTED`
-* `COMPLETED`
-* `FAILED`
-* `SKIPPED`
+**Data Type**: `STRING`
+**Same Possible Values as `elt_process_status`**:
+`PENDING`, `STARTED`, `COMPLETED`, `FAILED`, `SKIPPED`
 
 ---
 
 ## Column: `audit_result_status`
 
 **Purpose**
-Captures the **result of the audit logic**. It conveys whether the data validated successfully (e.g., counts match), even if audit\_process\_status was technically successful.
+Represents the **outcome** of the audit, not whether it ran. It focuses on the correctness of the data, based on validations.
 
-**Data Type**
-`STRING`
+**Scope & Use Cases**
 
-**Possible Values**
+* Crucial for determining if the data can be trusted
+* May trigger rollbacks, alerts, or invalidation tags
+* Serves as the main indicator of pipeline *data quality success*
 
-* `MATCHED` — Data validated correctly
-* `MISMATCHED` — Audit completed but data did not match
-* `NOT_VALID` — Audit was inconclusive or logically incorrect
+**Data Type**: `STRING`
+**Possible Values**:
+
+* `MATCHED` – Audit passed; source and target aligned
+* `MISMATCHED` – Discrepancy found (e.g., count or schema mismatch)
+* `NOT_VALID` – Audit not meaningful (e.g., missing inputs or bad configuration)
 
 ---
 
 ## Column: `pipeline_final_status`
 
 **Purpose**
-Represents the **overall outcome** of the pipeline run. It is a summary field derived from ELT status, audit execution, and audit result. Useful for dashboards and monitoring views.
+Represents the overall logical conclusion of this pipeline run. It summarizes both technical and validation outcomes.
 
-**Data Type**
-`STRING`
+**Scope & Use Cases**
 
-**Possible Values**
+* Enables filtering of good vs bad runs for reporting
+* Affects retry queues and downstream triggering
+* Used in dashboards for tracking SLA adherence
+
+**Data Type**: `STRING`
+**Possible Values**:
 
 * `PENDING`
 * `STARTED`
@@ -467,87 +555,123 @@ Represents the **overall outcome** of the pipeline run. It is a summary field de
 
 ---
 
+
+## Column: `invalidate_flag`
+
+**Purpose**
+Marks the pipeline run as invalid when it is later discovered that the loaded data was corrupt, incorrect, or no longer trustworthy.
+
+**Scope & Use Cases**
+
+* Separates failed runs (technical issues) from *untrusted but completed* runs
+* Enables targeted cleanup or rollback logic downstream
+* Allows audit reports and dashboards to flag invalid records
+
+**Data Type**: `BOOLEAN`
+**Possible Values**:
+
+* `TRUE` – Marked invalid by user or audit rule
+* `FALSE` – Valid by default
+
+---
+
+## Column: `invalidate_reason`
+
+**Purpose**
+Captures the explanation for why the pipeline run was invalidated. Should be human-readable or system-generated message.
+
+**Scope & Use Cases**
+
+* Critical for postmortems and audits
+* Helps reviewers understand what went wrong
+* Useful for retry logic, root cause tagging, or ML analysis of errors
+
+**Data Type**: `STRING`
+**Examples**:
+
+* `corrupt source files`
+* `unexpected schema drift`
+* `manual override: missing partition`
+
+---
+
+## Column: `invalidated_at`
+
+**Purpose**
+Timestamp when the run was officially marked as invalid.
+
+**Scope & Use Cases**
+
+* Tracks how late the invalidation was discovered
+* Helps determine windows of exposure for bad data
+* Important for change audit trails and rollback timelines
+
+**Data Type**: `TIMESTAMP`
+
+---
+
+## Column: `target_data_locator`
+
+**Purpose**
+Describes where exactly the data for this run is stored. Can include S3 paths, file patterns, or Snowflake table with filtering hints.
+
+**Scope & Use Cases**
+
+* Enables targeted deletion or reprocessing
+* Useful for traceability and reproducibility of loaded data
+* Allows rollback scripts to delete only affected slices
+
+**Data Type**: `STRING` or `VARIANT`
+**Examples**:
+
+* S3: `s3://bucket/logs/2025/06/14/10/*.ndjson`
+* Snowflake: `{ "table": "logs_hourly", "filter": "job_id = 'JOB_20250614_01'" }`
+
+---
+
+## Column: `target_data_deleted_flag`
+
+**Purpose**
+Tracks whether the target data was explicitly removed (manually or by pipeline) after invalidation or rollback.
+
+**Scope & Use Cases**
+
+* Ensures visibility into cleanup actions
+* Prevents duplicate deletes or skipped rollbacks
+* Allows safety checks for residual data presence
+
+**Data Type**: `BOOLEAN`
+**Possible Values**:
+
+* `TRUE` – Data deleted
+* `FALSE` – Data still exists
+
+---
+
 ## Column: `misc_info_json`
 
 **Purpose**
-Stores optional and flexible metadata in JSON format that supports debugging, traceability, ownership, or manual re-execution. This field acts as a developer aid and catch-all for non-tabular diagnostics.
+Flexible column to store miscellaneous runtime or static metadata. Can include error messages, developer notes, pipeline ownership, or extra parameters.
 
-Typical use cases include:
+**Scope & Use Cases**
 
-* Error tracebacks and exception messages
-* Manual override parameters for reruns
-* Pipeline ownership details
-* Comments, tags, or runtime decisions
+* Supports debugging and postmortem workflows
+* Allows free-form tagging of pipeline logic
+* May include overrides or run context useful for reruns
 
-**Data Type**
-`STRING` or `VARIANT` (depending on the storage engine; Snowflake recommends `VARIANT`)
-
-**Possible Values**
-A valid JSON object. For example:
+**Data Type**: `VARIANT` or JSON string
+**Examples**:
 
 ```json
 {
-  "error_message": "COPY INTO failed due to file format mismatch",
-  "pipeline_owner": "team_data_platform",
-  "replay_params": {
-    "source": "elasticsearch",
-    "date_range": "2025-06-13T00:00Z to 2025-06-13T01:00Z"
-  },
-  "notes": "Retry using updated stage file format"
+  "error": "Invalid date format in field 'timestamp'",
+  "owner": "data.engineering@company.com",
+  "trigger_reason": "manual hotfix",
+  "expected_file_count": 12
 }
 ```
 
-This field is **optional**, but extremely useful during debugging and post-mortem analysis.
-
----
 ---
 
-### ✅ `pipeline_lifecycle` Table Schema (Final – 37 Columns)
-
-| #                                        | Column Name                      | Purpose                                                             | Type             | Example Value           |
-| ---------------------------------------- | -------------------------------- | ------------------------------------------------------------------- | ---------------- | ----------------------- |
-| **\[1] Execution Context**               |                                  |                                                                     |                  |                         |
-| 1                                        | `run_source`                     | Who triggered the pipeline                                          | STRING           | `airflow`, `manual`     |
-| 2                                        | `job_id`                         | Unique pipeline run identifier                                      | STRING           | `JOB_20250613_001`      |
-| **\[2] Source Identification**           |                                  |                                                                     |                  |                         |
-| 3                                        | `source_name`                    | Type of source system                                               | STRING           | `elasticsearch`         |
-| 4                                        | `data_domain`                    | Logical grouping/category of data                                   | STRING           | `logs`, `metrics`       |
-| 5                                        | `source_object`                  | Source index/table/file                                             | STRING           | `logs-prod-*`           |
-| 6                                        | `source_data_frequency`          | How often data is generated at source                               | STRING           | `1 MIN`, `1 HOUR`       |
-| 7                                        | `collection_frequency`           | How often pipeline ingests data                                     | STRING           | `1 HOUR`, `DAILY`       |
-| **\[3] Query Window**                    |                                  |                                                                     |                  |                         |
-| 8                                        | `query_window_start_at`          | Start of extraction window                                          | TIMESTAMP        | `2025-06-13T00:00:00Z`  |
-| 9                                        | `query_window_end_at`            | End of extraction window                                            | TIMESTAMP        | `2025-06-13T01:00:00Z`  |
-| 10                                       | `query_window_delta_label`       | Human-readable duration of window                                   | STRING           | `1 HOUR`, `15 MIN`      |
-| **\[4] Pipeline Configuration**          |                                  |                                                                     |                  |                         |
-| 11                                       | `pipeline_route`                 | Logical route taken by data                                         | STRING           | `source_to_snowflake`   |
-| 12                                       | `job_started_at`                 | When pipeline execution started                                     | TIMESTAMP        | `2025-06-13T01:10:00Z`  |
-| **\[5] Source Observation & Extraction** |                                  |                                                                     |                  |                         |
-| 13                                       | `source_count_pre_checked_at`    | Timestamp of pre-extraction count                                   | TIMESTAMP        | `2025-06-13T01:11:00Z`  |
-| 14                                       | `source_count_pre_extract`       | Record count before data pull                                       | INTEGER          | `10000`                 |
-| 15                                       | `source_extracted_at`            | When data extraction completed                                      | TIMESTAMP        | `2025-06-13T01:13:00Z`  |
-| 16                                       | `source_extracted_count`         | Records extracted from the source                                   | INTEGER          | `10000`                 |
-| 17                                       | `source_count_post_checked_at`   | Timestamp of post-extraction count check                            | TIMESTAMP        | `2025-06-13T01:15:00Z`  |
-| 18                                       | `source_count_post_extract`      | Record count still in source after extraction                       | INTEGER          | `10000`                 |
-| **\[6] Transfer Phase Timing**           |                                  |                                                                     |                  |                         |
-| 19                                       | `source_to_target_started_at`    | When data transfer to target began                                  | TIMESTAMP        | `2025-06-13T01:16:00Z`  |
-| 20                                       | `source_to_target_ended_at`      | When data transfer to target completed                              | TIMESTAMP        | `2025-06-13T01:18:00Z`  |
-| 21                                       | `source_to_target_duration_mins` | Total duration of the transfer phase                                | FLOAT            | `2.0`                   |
-| 22                                       | `target_loaded_at`               | When data was confirmed loaded into the target                      | TIMESTAMP        | `2025-06-13T01:18:00Z`  |
-| 23                                       | `extract_to_load_gap_mins`       | Delay between extraction and target load                            | FLOAT            | `5.0`                   |
-| **\[7] Target Load & Audit Metrics**     |                                  |                                                                     |                  |                         |
-| 24                                       | `target_loaded_count`            | Number of records loaded into target                                | INTEGER          | `10000`                 |
-| 25                                       | `count_difference`               | Difference between source extracted and loaded                      | INTEGER          | `0`                     |
-| 26                                       | `count_difference_percent`       | Relative difference (e.g., % drift)                                 | FLOAT            | `0.0`                   |
-| **\[8] Process & Audit Statuses**        |                                  |                                                                     |                  |                         |
-| 27                                       | `elt_process_status`             | Technical status of pipeline execution                              | STRING           | `COMPLETED`, `FAILED`   |
-| 28                                       | `audit_process_status`           | Did audit logic execute successfully                                | STRING           | `COMPLETED`, `FAILED`   |
-| 29                                       | `audit_result_status`            | Outcome of data match verification                                  | STRING           | `MATCHED`, `MISMATCHED` |
-| **\[9] Final Outcome**                   |                                  |                                                                     |                  |                         |
-| 30                                       | `pipeline_final_status`          | Overall run status across all steps                                 | STRING           | `COMPLETED`, `FAILED`   |
-| **\[10] Developer & Debug Info**         |                                  |                                                                     |                  |                         |
-| 31                                       | `misc_info_json`                 | JSON with optional debug info, manual run params, owner notes, etc. | STRING / VARIANT | JSON string             |
-
----
 
 
