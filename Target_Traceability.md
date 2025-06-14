@@ -1,0 +1,63 @@
+### Section: **Target Traceability and Developer Notes**
+
+This final section supports traceability of loaded data in external systems (e.g., S3 folder or Snowflake table). It also includes an extensible notes field to store structured or unstructured metadata helpful for debugging, reruns, or manual intervention.
+
+---
+
+## 45. `target_trace_info`
+
+**Purpose**
+Stores traceable details about where the output data was loaded—either as a Snowflake WHERE filter or an S3 path pattern.
+
+**Why We Need It**
+
+* Critical for debugging or manually verifying records.
+* Helps rollback/delete specific output records without needing re-computation.
+* Supports record-level traceability across pipeline runs.
+
+**Scope**
+Format depends on target system:
+
+* For S3: `s3://bucket/path/job_id=XYZ/`
+* For Snowflake: `WHERE job_id = 'XYZ'` or `tag = 'run_ABC'`
+
+**Data Type**: `STRING` or `VARIANT`
+**Examples**:
+
+* `"s3://analytics-pipeline/logs/2025/06/14/job_id=abc123/"`
+* `"snowflake_query_hint": "job_id = 'abc123'"`
+
+---
+
+## 46. `misc_info_json`
+
+**Purpose**
+Flexible field for storing supplementary structured metadata such as error messages, dynamic parameters, execution flags, responsible engineer, and rerun context.
+
+**Why We Need It**
+
+* Enables richer diagnostics and post-mortem insights.
+* Helps developers rerun the pipeline with the exact same context.
+* Reduces need for hardcoded overrides or excessive logging elsewhere.
+
+**Scope**
+May include runtime context, manual annotations, pipeline config, or error payloads.
+
+**Data Type**: `VARIANT` (JSON-compatible)
+
+**Examples**:
+
+```json
+{
+  "error": "COPY INTO failed due to file format mismatch",
+  "owner": "navneeth",
+  "retry_attempt": 2,
+  "params_used": {
+    "warehouse": "MEDIUM_WH",
+    "delta_label": "1 hour"
+  }
+}
+```
+
+---
+
