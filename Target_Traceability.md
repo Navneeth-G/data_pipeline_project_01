@@ -97,4 +97,26 @@ Should be updated on every material change to the row (e.g., via `UPDATE` statem
 
 ---
 
+## 49. `retry_attempt`
+
+**Purpose**
+Tracks how many times this specific query window has been retried after a failure.
+
+**Why We Need It**
+
+* Enables retry logic to incrementally label reruns of the same window.
+* Helps identify instability (e.g., windows with frequent failures).
+* Used in deduplication and debugging to correlate retries.
+
+**Scope**
+
+* `0` → Original attempt
+* `1` or more → Retry attempt number
+  Should increment on each retrial of a failed or invalidated window.
+
+**Data Type**: `INTEGER`
+**Default**: `0` (first/original attempt)
+
+
+
 
