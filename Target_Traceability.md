@@ -61,3 +61,40 @@ May include runtime context, manual annotations, pipeline config, or error paylo
 
 ---
 
+## 47. `record_inserted_at`
+
+**Purpose**
+Timestamp when this row was first inserted into the `pipeline_lifecycle` table.
+
+**Why We Need It**
+
+* Enables tracking when each pipeline run was registered.
+* Supports audit trails and insert-time latency measurement.
+* Useful for sorting and filtering runs over time.
+
+**Scope**
+Should be populated automatically at the time of initial insert.
+
+**Data Type**: `TIMESTAMP`
+
+---
+
+## 48. `record_last_updated_at`
+
+**Purpose**
+Captures the latest time this row was modified (e.g., after a retry, audit update, or invalidation).
+
+**Why We Need It**
+
+* Supports change detection and operational alerting.
+* Enables tracking run status evolution (e.g., from `STARTED` → `FAILED` → `REPLACED`).
+* Required for building dashboards with "last touched" indicators.
+
+**Scope**
+Should be updated on every material change to the row (e.g., via `UPDATE` statement or merge logic).
+
+**Data Type**: `TIMESTAMP`
+
+---
+
+
